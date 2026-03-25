@@ -113,7 +113,7 @@ func (p *Prompt) readString() (input string, e error) {
 			p.offset = 0
 			fmt.Printf("%s\n\r", p.render(0, 0))
 
-			input = string(p.input)
+			input = strings.TrimSpace(string(p.input))
 
 			return input, nil
 		case 0xc: //nolint:mnd // ^L
@@ -316,21 +316,27 @@ func (p *Prompt) Run() error {
 			continue
 		}
 
-		if len(p.History) > 0 {
-			if p.History[len(p.History)-1] != input {
+		if input != "" {
+			if len(p.History) > 0 {
+				if p.History[len(p.History)-1] != input {
+					p.History = append(p.History, input)
+				}
+			} else {
 				p.History = append(p.History, input)
 			}
-		} else {
-			p.History = append(p.History, input)
-		}
 
-		if p.HistSize > 0 {
-			if len(p.History) > p.HistSize {
-				p.History = p.History[1:]
+			if p.HistSize > 0 {
+				if len(p.History) > p.HistSize {
+					p.History = p.History[1:]
+				}
 			}
 		}
 
 		for _, cmd := range cmds {
+			if len(cmd) == 0 {
+				continue
+			}
+
 			if p.Handler != nil {
 				if e = p.Handler(cmd, p); e != nil {
 					fmt.Println(e.Error())
