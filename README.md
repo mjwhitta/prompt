@@ -17,6 +17,9 @@ allows for processing user input with the following features;
 - Custom prompt
     - Color support
     - Multi-line support
+- User can provide multiple commands at once
+    - Configurable via custom SplitterFunc
+- Can update prompt state via custom OnStateChangeFunc
 - Probably some hidden ~~bugs~~features
 
 ## How to install

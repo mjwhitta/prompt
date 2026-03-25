@@ -10,23 +10,27 @@ import (
 
 var home string
 
-func cmdHandler(input string, p *prompt.Prompt) error {
-	var args string
+func cmdHandler(input []string, p *prompt.Prompt) error {
+	var args []string
 	var cmd string
 	var e error
 	var files []os.DirEntry
 
-	input = strings.TrimSpace(input)
-	cmd, args, _ = strings.Cut(input, " ")
+	if len(input) == 0 {
+		return nil
+	}
+
+	cmd = input[0]
+	args = input[1:]
 
 	switch cmd {
 	case "": // Do nothing
 	case "cd":
-		if args == "" {
-			args = home
+		if len(args) == 0 {
+			args = []string{home}
 		}
 
-		e = os.Chdir(args)
+		e = os.Chdir(args[0])
 	case "clear":
 		fmt.Print("\x1b[1;1H\x1b[2J")
 	case "clearhist":
@@ -35,16 +39,16 @@ func cmdHandler(input string, p *prompt.Prompt) error {
 		p.Stop = true
 		return nil
 	case "ls":
-		if args == "" {
-			args = "."
+		if len(args) == 0 {
+			args = []string{"."}
 		}
 
-		files, e = os.ReadDir(args)
+		files, e = os.ReadDir(args[0])
 		for _, file := range files {
 			fmt.Println(file.Name())
 		}
 	default:
-		e = fmt.Errorf("unknown command: %s", input)
+		e = fmt.Errorf("unknown command: %s", cmd)
 	}
 
 	return e
@@ -59,6 +63,7 @@ func main() {
 
 	p.Handler = cmdHandler
 	p.OnStateChange = updatePrompt
+	// p.Splitter = prompt.SimpleSplit
 
 	if e := p.Run(); e != nil {
 		fmt.Println(e.Error())

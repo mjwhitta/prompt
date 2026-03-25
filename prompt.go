@@ -13,25 +13,32 @@ type (
 	// HandlerFunc is function to handle user input. Any returned
 	// errors are printed by the prompt loop and the loop continues.
 	// Use p.Stop to exit the loop.
-	HandlerFunc func(input string, p *Prompt) error
+	HandlerFunc func(input []string, p *Prompt) error
 
 	// OnStateChangeFunc allows for updating of Prompt state at the
 	// beginning of every prompt loop.
 	OnStateChangeFunc func(p *Prompt)
 
 	// Prompt is a struct containing relevant metadata to simulate a
-	// cli prompt.
+	// cli prompt. The default HistSize is 1000. Modify to your needs.
+	// Set to -1 to disable history. The default prompt is "> ". Use
+	// (*Prompt).SetPrompt() to modify it to fit your needs. The
+	// default Splitter is ShellSplit.
 	Prompt struct {
 		Handler       HandlerFunc
 		History       []string
 		HistSize      int
 		OnStateChange OnStateChangeFunc
+		Splitter      SplitterFunc
 		Stop          bool
 
 		input  []byte
 		offset int
 		prefix string
 	}
+
+	// SplitterFunc is used to split user input.
+	SplitterFunc func(input string) ([][]string, error)
 )
 
 // New will return a sane-default Prompt instance.
@@ -44,8 +51,16 @@ func (p *Prompt) init() *Prompt {
 		p.HistSize = 1000
 	}
 
+	if p.OnStateChange == nil {
+		p.OnStateChange = DoNothing
+	}
+
 	if p.prefix == "" {
 		p.prefix = "> "
+	}
+
+	if p.Splitter == nil {
+		p.Splitter = ShellSplit
 	}
 
 	return p
@@ -280,20 +295,25 @@ func (p *Prompt) render(diff int, direction int) string {
 // Run will start the interactive prompt.
 func (p *Prompt) Run() error {
 	var e error
+	var cmds [][]string
 	var input string
 
 	p.init()
 	p.Stop = false
+	p.OnStateChange(p)
 
 	for !p.Stop {
-		p.OnStateChange(p)
-
 		fmt.Print(p.prefix)
 
 		if input, e = p.readString(); e != nil {
 			return e
 		} else if p.Stop {
 			break
+		}
+
+		if cmds, e = p.Splitter(input); e != nil {
+			fmt.Println(e.Error())
+			continue
 		}
 
 		if len(p.History) > 0 {
@@ -310,8 +330,21 @@ func (p *Prompt) Run() error {
 			}
 		}
 
-		if e = p.Handler(input, p); e != nil {
-			fmt.Println(e.Error())
+		for _, cmd := range cmds {
+			if p.Handler != nil {
+				if e = p.Handler(cmd, p); e != nil {
+					fmt.Println(e.Error())
+				}
+			}
+
+			if p.Stop {
+				break
+			}
+
+			p.OnStateChange(p)
+
+			// Ensure OnStateChangeFunc didn't screw anything up
+			p.init()
 		}
 	}
 

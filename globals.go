@@ -3,6 +3,6 @@ package prompt
 import "regexp"
 
 // Version is the package version
-const Version string = "1.0.0"
+const Version string = "1.1.0"
 
 var reEscCodes = regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]`)
