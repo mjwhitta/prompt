@@ -48,6 +48,30 @@ func New() *Prompt {
 	return (&Prompt{}).init()
 }
 
+// Cmd will execute single commands, although you can join commands
+// with semi-colons.
+func (p *Prompt) Cmd(cmd string, interactive ...bool) error {
+	p.init()
+	p.Stop = false
+	p.OnStateChange(p)
+
+	if strings.TrimSpace(cmd) == "" {
+		return nil
+	}
+
+	p.processInput(cmd)
+
+	if p.Stop {
+		return nil
+	}
+
+	if (len(interactive) > 0) && interactive[0] {
+		return p.Run()
+	}
+
+	return nil
+}
+
 func (p *Prompt) init() *Prompt {
 	if p.HistSize == 0 {
 		p.HistSize = 1000
@@ -366,7 +390,7 @@ func (p *Prompt) Run() error {
 }
 
 // Script will execute multiple commands, as if read from a file.
-func (p *Prompt) Script(lines []string, interactive bool) error {
+func (p *Prompt) Script(lines []string, interactive ...bool) error {
 	p.init()
 	p.Stop = false
 	p.OnStateChange(p)
@@ -384,7 +408,7 @@ func (p *Prompt) Script(lines []string, interactive bool) error {
 		}
 	}
 
-	if interactive {
+	if (len(interactive) > 0) && interactive[0] {
 		return p.Run()
 	}
 
@@ -392,7 +416,7 @@ func (p *Prompt) Script(lines []string, interactive bool) error {
 }
 
 // ScriptFile will read commands from a file.
-func (p *Prompt) ScriptFile(path string, interactive bool) error {
+func (p *Prompt) ScriptFile(path string, interactive ...bool) error {
 	var b []byte
 	var e error
 
@@ -402,7 +426,7 @@ func (p *Prompt) ScriptFile(path string, interactive bool) error {
 
 	b = bytes.TrimSpace(b)
 
-	return p.Script(strings.Split(string(b), "\n"), interactive)
+	return p.Script(strings.Split(string(b), "\n"), interactive...)
 }
 
 // SetPrompt will set the prompt's prefix.

@@ -91,7 +91,7 @@ func main() {
 
 	switch {
 	case flags.cmd != "":
-		e = p.Script([]string{flags.cmd}, flags.interactive)
+		e = p.Cmd(flags.cmd, flags.interactive)
 	case flags.script != "":
 		e = p.ScriptFile(flags.script, flags.interactive)
 	default:
