@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -8,7 +9,14 @@ import (
 	"github.com/mjwhitta/prompt"
 )
 
-var home string
+var (
+	flags struct {
+		cmd         string
+		interactive bool
+		script      string
+	}
+	home string
+)
 
 func cmdHandler(input []string, p *prompt.Prompt) error {
 	var args []string
@@ -55,17 +63,42 @@ func cmdHandler(input []string, p *prompt.Prompt) error {
 }
 
 func init() {
+	flag.StringVar(&flags.cmd, "c", "", "Run command")
+	flag.BoolVar(
+		&flags.interactive,
+		"i",
+		false,
+		"Drop into shell after cmd/script",
+	)
+	flag.StringVar(&flags.script, "s", "", "Run script")
+	flag.Parse()
+
 	home, _ = os.UserHomeDir()
 }
 
 func main() {
+	var e error
 	var p *prompt.Prompt = prompt.New()
 
 	p.Handler = cmdHandler
 	p.OnStateChange = updatePrompt
 	// p.Splitter = prompt.SimpleSplit
 
-	if e := p.Run(); e != nil {
+	if (flags.cmd != "") && (flags.script != "") {
+		fmt.Println("Specify either -c or -s, not both")
+		os.Exit(1)
+	}
+
+	switch {
+	case flags.cmd != "":
+		e = p.Script([]string{flags.cmd}, flags.interactive)
+	case flags.script != "":
+		e = p.ScriptFile(flags.script, flags.interactive)
+	default:
+		e = p.Run()
+	}
+
+	if e != nil {
 		fmt.Println(e.Error())
 	}
 }

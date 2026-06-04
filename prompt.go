@@ -1,8 +1,10 @@
 package prompt
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -66,6 +68,53 @@ func (p *Prompt) init() *Prompt {
 	return p
 }
 
+func (p *Prompt) processInput(input string) {
+	var cmds [][]string
+	var e error
+
+	if cmds, e = p.Splitter(input); e != nil {
+		fmt.Println(e.Error())
+		return
+	}
+
+	if input != "" {
+		if len(p.History) > 0 {
+			if p.History[len(p.History)-1] != input {
+				p.History = append(p.History, input)
+			}
+		} else {
+			p.History = append(p.History, input)
+		}
+
+		if p.HistSize > 0 {
+			if len(p.History) > p.HistSize {
+				p.History = p.History[1:]
+			}
+		}
+	}
+
+	for _, cmd := range cmds {
+		if len(cmd) == 0 {
+			continue
+		}
+
+		if p.Handler != nil {
+			if e = p.Handler(cmd, p); e != nil {
+				fmt.Println(e.Error())
+			}
+		}
+
+		if p.Stop {
+			break
+		}
+
+		p.OnStateChange(p)
+
+		// Ensure OnStateChangeFunc didn't screw anything up
+		p.init()
+	}
+}
+
 //nolint:cyclop,gocyclo // no shit
 func (p *Prompt) readString() (input string, e error) {
 	var b byte
@@ -73,7 +122,7 @@ func (p *Prompt) readString() (input string, e error) {
 	var direction int
 	var hist int
 	var old *term.State
-	var stdin int = int(os.Stdin.Fd()) //nolint:gosec // G115 - stdin
+	var stdin int = int(os.Stdin.Fd())
 	var tmp []byte
 
 	if old, e = term.MakeRaw(stdin); e != nil {
@@ -223,7 +272,7 @@ func (p *Prompt) render(diff int, direction int) string {
 	var oldCursor cursor
 	var prefix string
 	var sb strings.Builder
-	var stdin int = int(os.Stdin.Fd()) //nolint:gosec // G115 - stdin
+	var stdin int = int(os.Stdin.Fd())
 	var termWidth int
 
 	termWidth, _, e = term.GetSize(stdin)
@@ -295,7 +344,6 @@ func (p *Prompt) render(diff int, direction int) string {
 // Run will start the interactive prompt.
 func (p *Prompt) Run() error {
 	var e error
-	var cmds [][]string
 	var input string
 
 	p.init()
@@ -311,50 +359,46 @@ func (p *Prompt) Run() error {
 			break
 		}
 
-		if cmds, e = p.Splitter(input); e != nil {
-			fmt.Println(e.Error())
-			continue
-		}
-
-		if input != "" {
-			if len(p.History) > 0 {
-				if p.History[len(p.History)-1] != input {
-					p.History = append(p.History, input)
-				}
-			} else {
-				p.History = append(p.History, input)
-			}
-
-			if p.HistSize > 0 {
-				if len(p.History) > p.HistSize {
-					p.History = p.History[1:]
-				}
-			}
-		}
-
-		for _, cmd := range cmds {
-			if len(cmd) == 0 {
-				continue
-			}
-
-			if p.Handler != nil {
-				if e = p.Handler(cmd, p); e != nil {
-					fmt.Println(e.Error())
-				}
-			}
-
-			if p.Stop {
-				break
-			}
-
-			p.OnStateChange(p)
-
-			// Ensure OnStateChangeFunc didn't screw anything up
-			p.init()
-		}
+		p.processInput(input)
 	}
 
 	return nil
+}
+
+// Script will execute multiple commands, as if read from a file.
+func (p *Prompt) Script(lines []string, interactive bool) error {
+	p.init()
+	p.Stop = false
+	p.OnStateChange(p)
+
+	for _, line := range lines {
+		fmt.Println(p.prefix + line)
+		p.processInput(line)
+
+		if p.Stop {
+			return nil
+		}
+	}
+
+	if interactive {
+		return p.Run()
+	}
+
+	return nil
+}
+
+// ScriptFile will read commands from a file.
+func (p *Prompt) ScriptFile(path string, interactive bool) error {
+	var b []byte
+	var e error
+
+	if b, e = os.ReadFile(filepath.Clean(path)); e != nil {
+		return fmt.Errorf("failed to read script: %w", e)
+	}
+
+	b = bytes.TrimSpace(b)
+
+	return p.Script(strings.Split(string(b), "\n"), interactive)
 }
 
 // SetPrompt will set the prompt's prefix.
