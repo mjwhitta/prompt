@@ -372,6 +372,10 @@ func (p *Prompt) Script(lines []string, interactive bool) error {
 	p.OnStateChange(p)
 
 	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
 		fmt.Println(p.prefix + line)
 		p.processInput(line)
 
