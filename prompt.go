@@ -27,6 +27,7 @@ type (
 	// (*Prompt).SetPrompt() to modify it to fit your needs. The
 	// default Splitter is ShellSplit.
 	Prompt struct {
+		Comment       string
 		Handler       HandlerFunc
 		History       []string
 		HistSize      int
@@ -55,13 +56,7 @@ func (p *Prompt) Cmd(cmd string, interactive ...bool) error {
 	p.Stop = false
 	p.OnStateChange(p)
 
-	if strings.TrimSpace(cmd) == "" {
-		return nil
-	}
-
-	p.processInput(cmd)
-
-	if p.Stop {
+	if p.processInput(cmd); p.Stop {
 		return nil
 	}
 
@@ -95,6 +90,14 @@ func (p *Prompt) init() *Prompt {
 func (p *Prompt) processInput(input string) {
 	var cmds [][]string
 	var e error
+
+	if input = strings.TrimSpace(input); input == "" {
+		return
+	}
+
+	if (p.Comment != "") && strings.HasPrefix(input, p.Comment) {
+		return
+	}
 
 	if cmds, e = p.Splitter(input); e != nil {
 		fmt.Println(e.Error())
@@ -396,14 +399,17 @@ func (p *Prompt) Script(lines []string, interactive ...bool) error {
 	p.OnStateChange(p)
 
 	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
+		if line = strings.TrimSpace(line); line == "" {
+			continue
+		}
+
+		if (p.Comment != "") && strings.HasPrefix(line, p.Comment) {
 			continue
 		}
 
 		fmt.Println(p.prefix + line)
-		p.processInput(line)
 
-		if p.Stop {
+		if p.processInput(line); p.Stop {
 			return nil
 		}
 	}
